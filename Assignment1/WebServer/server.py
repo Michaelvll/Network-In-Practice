@@ -8,7 +8,7 @@ serverSocket = socket.socket(
 # Prepare a sever socket
 #Fill in start
 host = ''
-port = 60000
+port = 6060
 serverSocket.bind((host, port))
 serverSocket.listen(1)
 #Fill in end
@@ -24,7 +24,7 @@ while True:
         f.close()  # Fill in start #Fill in end
         # Send one HTTP header line into socket
         #Fill in start
-        connectionSocket.send(b'HTTP/1.1 200 OK\r\n')
+        connectionSocket.send(b'HTTP/1.1 200 OK\r\n\r\n')
         #Fill in end
         # Send the content of the requested file to the client
         for i in range(0, len(outputdata)):
