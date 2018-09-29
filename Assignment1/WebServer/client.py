@@ -9,7 +9,9 @@ if __name__ == "__main__":
 
     _, server_host, server_port, filename = sys.argv
 
-    clientSocket = socket.socket()
+    clientSocket = socket.socket(family=socket.AF_INET,
+                                 type=socket.SOCK_STREAM,
+                                 )
     clientSocket.connect((server_host, int(server_port)))
 
     clientSocket.send(('GET /' + filename).encode())
