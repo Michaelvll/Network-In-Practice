@@ -8,7 +8,7 @@ serverSocket = socket.socket(
 # Prepare a sever socket
 #Fill in start
 host = ''
-port = 6060
+port = 6059
 serverSocket.bind((host, port))
 serverSocket.listen(1)
 #Fill in end
@@ -19,6 +19,7 @@ while True:
     try:
         message = connectionSocket.recv(1024)  # Fill in start #Fill in end
         filename = message.split()[1]
+        print(message)
         f = open(filename[1:])
         outputdata = [line.encode() for line in f.readlines()]
         f.close()  # Fill in start #Fill in end
