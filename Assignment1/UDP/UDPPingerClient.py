@@ -4,7 +4,7 @@ import socket
 import datetime
 
 clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-address = ('localhost', 12000)
+address = ('test.michaelvll.com', 12000)
 
 rtts = []
 loss_cnt = 0
@@ -30,6 +30,8 @@ for i in range(1, 11):
         loss_cnt += 1
         print("Request timed out\n")
 
+if loss_cnt == 10:
+    rtts.append(1)
 print("Min RTT:", min(rtts), "\tMax RTT:",
       max(rtts), "\tAvg RTT:", sum(rtts) / 10)
 print("Packet loss rate: {}%".format(loss_cnt * 10))
