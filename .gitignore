@@ -1,2 +1,6 @@
 auth.py
 *pycache*/
+*.aux
+*.log
+*.pptx
+*.tex
