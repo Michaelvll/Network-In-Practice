@@ -35,7 +35,7 @@ if __name__ == "__main__":
     # Prepare a sever socket
     # Fill in start
     host = ''
-    port = 6059
+    port = 6060
     serverSocket.bind((host, port))
     serverSocket.listen(5)
     # Fill in end

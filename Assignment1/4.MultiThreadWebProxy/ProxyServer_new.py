@@ -53,6 +53,7 @@ def proxyServe(tcpCliSock, addr):
             try:
                 # Connect to the socket to port 80
                 c.connect((hostn, 80))
+                fileobj = c.makefile("rwb", 0)
                 contentPath = url.partition('/')[2]
 
                 # Create a temporary file on this socket and ask port 80 for the file requested by the client
@@ -71,7 +72,7 @@ def proxyServe(tcpCliSock, addr):
                     contentPath = url
                 except Exception:
                     print(e)
-                    # tcpCliSock.send(b"HTTP/1.0 404 NOT FOUND\r\n")
+                    tcpCliSock.send(b"HTTP/1.0 404 NOT FOUND\r\n")
                     c.close()
                     return
 
@@ -81,16 +82,18 @@ def proxyServe(tcpCliSock, addr):
             getmsg = ("GET /" + contentPath + " HTTP/1.0\r\n\r\n").encode()
             print("Send:", getmsg)
 
-            c.send(getmsg)
+            # c.send(getmsg)
+            fileobj.write(getmsg)
             # Read the response into buffer
-            outputBuffer = b''
-            while True:
-                # c.settimeout(1)
-                buf = c.recv(4096)
-                # print(buf.decode())
-                outputBuffer += buf
-                if not buf:
-                    break
+            outputBuffer = fileobj.read()
+            # outputBuffer = b''
+            # while True:
+            #     # c.settimeout(1)
+            #     buf = c.recv(4096)
+            #     # print(buf.decode())
+            #     outputBuffer += buf
+            #     if not buf:
+            #         break
             # print(outputBuffer)
             # Create a new file in the cache for the requested file.
             # Also send the response in the buffer to client socket and the corresponding file in the cache

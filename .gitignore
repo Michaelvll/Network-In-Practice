@@ -4,3 +4,4 @@ auth.py
 *.log
 *.pptx
 *.tex
+.vscode/

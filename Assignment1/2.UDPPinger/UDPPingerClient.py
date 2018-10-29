@@ -4,7 +4,7 @@ import socket
 import datetime
 
 clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-address = ('test.michaelvll.com', 12000)
+address = ('localhost', 12000)
 
 rtts = []
 loss_cnt = 0
