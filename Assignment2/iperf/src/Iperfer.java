@@ -7,10 +7,7 @@ public class Iperfer {
     private static void client(String hostname, int port, long time) {
         long numBytes = 0;
         long totalTime = 0;
-        try (
-                Socket socket = new Socket(hostname, port);
-                OutputStream out = socket.getOutputStream()
-        ) {
+        try (Socket socket = new Socket(hostname, port); OutputStream out = socket.getOutputStream()) {
             byte[] chunk = new byte[1000];
             Arrays.fill(chunk, (byte) 0);
             time = (long) (time * 1e9);
@@ -31,16 +28,14 @@ public class Iperfer {
         System.out.println(String.format("sent=%d KB rate=%f Mbps", sentKB, rate));
     }
 
-    private static void server(Integer port) {
+    private static void server(int port) {
         long totalTime = 0;
         long numBytes = 0;
-        try (
-                ServerSocket socket = new ServerSocket(port);
+        try (ServerSocket socket = new ServerSocket(port);
                 Socket clientSocket = socket.accept();
-                DataInputStream in = new DataInputStream(clientSocket.getInputStream())
-        ) {
-            byte [] inputData = new byte[1000];
-            int len = in.read(inputData,0, 1000);
+                DataInputStream in = new DataInputStream(clientSocket.getInputStream())) {
+            byte[] inputData = new byte[1000];
+            int len = in.read(inputData, 0, 1000);
             long startTime = System.nanoTime();
             while (len != -1) {
                 numBytes += len;
@@ -56,7 +51,6 @@ public class Iperfer {
         double rate = numBytes * 8 / (totalTime / 1e3);
         System.out.println(String.format("received=%d KB rate=%f Mbps", receiveKB, rate));
     }
-
 
     public static void main(String[] args) {
         // write your code here
