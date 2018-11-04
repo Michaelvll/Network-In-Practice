@@ -1,0 +1,3 @@
+mininet> h4 java -jar bin/Iperfer.jar -c -h 10.0.0.3 -p 10000 -t 20
+Total Time: 21.168334616
+sent=81719 KB rate=30.883488 Mbps

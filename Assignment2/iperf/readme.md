@@ -1,6 +1,6 @@
 ## Usage
 
-For convenience, I have already generated a jar file in the bin folder. You can run the Iperfer.jar by the commands below. Also, you can compile and execute the codes by the command show in the next session.
+For convenience, I have already generated a jar file in the bin folder. You can run the Iperfer.jar by the commands below (Require jdk version >= 8). Also, you can compile and execute the codes by the command show in the next session.
 1. For client
     ```bash
     java -jar bin/Iperfer -c -h hostname -p port -t time

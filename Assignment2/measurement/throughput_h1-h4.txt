@@ -1,0 +1,4 @@
+h4 java -jar bin/Iperfer.jar -c -h 10.0.0.1 -p 10000 -t 20
+Total Time: 20.963899839
+sent=55916 KB rate=21.338015 Mbps
+
