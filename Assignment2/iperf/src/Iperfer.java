@@ -36,6 +36,7 @@ public class Iperfer {
                 DataInputStream in = new DataInputStream(clientSocket.getInputStream())) {
             byte[] inputData = new byte[1000];
             int len = in.read(inputData, 0, 1000);
+            System.out.println(len);
             long startTime = System.nanoTime();
             while (len != -1) {
                 numBytes += len;
