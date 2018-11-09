@@ -1,3 +1,4 @@
-h6 java -jar bin/Iperfer.jar -c -h 10.0.0.5 -p 10000 -t 20
-Total Time: 20.093480665
-sent=42363 KB rate=16.866366 Mbps
+h6  java -jar bin/Iperfer.jar -c -p 10000 -h 10.0.0.5 -t 20
+Total Time: 20.706901506
+sent=60010 KB rate=23.184541 Mbps
+

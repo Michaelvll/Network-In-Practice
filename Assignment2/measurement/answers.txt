@@ -16,11 +16,11 @@ Average RTT for pair 2: 164.5 ms
 Throughput for pair 1: 7.0 Mbps
 Throughput for pair 2: 15.9 Mbps 
 
-My predictions are quite close to the actual value. The latency is still the same as for one pair of hosts, since multiple communicating does not affect the RTT. The total of the throughput should be still the same as the bottleneck of the connection. The predictions for throughput of each host is not quite correct, since the time is not long enough for the average throughput of the two hosts to converge to a same value (11.1 Mbps).
+My predictions are quite close to the actual value. The latency is still the same as for one pair of hosts, since multiple communicating does not affect the RTT. The total of the throughput should be still the same as the bottleneck of the connection. The predictions for throughput of each host is not quite correct, since the two pairs are logically equivalent to each other, which means the one who starts first can get higher throughput(11.1 Mbps).
 
 Three Pairs
 expected latency: 164.8 ms (all)
-expected throughput: 22.2 Mbps (total)
+expected throughput: 22.2 Mbps (total, 7.4 Mbps each)
 
 Average RTT for pair 1: 163.6 ms 
 Average RTT for pair 2: 163.9 ms
@@ -29,16 +29,16 @@ Throughput for pair 1: 11.7 Mbps
 Throughput for pair 2: 6.3 Mbps 
 Throughput for pair 3: 5.4 Mbps
 
-My predictions are quite close to the actual value. The latency is still the same as for one pair of hosts, since multiple communicating does not affect the RTT. The total of the throughput should be still the same as the bottleneck of the connection.
+My predictions are quite close to the actual value. The latency is still the same as for one pair of hosts, since multiple communicating does not affect the RTT. The total of the throughput should be still the same as the bottleneck of the connection. The predictions for throughput of each host is not quite correct, since the three pairs are logically equivalent to each other, which means the one who starts first can get higher throughput.
 
 Q4:
 expected latency for h1-h4: 164.8 ms (sum of latency of L1, L2 and L3)
 expected latency for h5-h6: 45.7 ms (sum of latency of L4, L2 and L5)
-expected throughput: 37.7 Mbps (total, the same as the throughput of L2)
+expected throughput: 40.9 Mbps (total, the same as the throughput of L2, 20.45 Mbps each)
 
 Average RTT h1-h4: 163.4 ms 
 Average RTT h5-h6: 44.6 ms 
-Throughput for h1-h4: 21.0 Mbps
-Throughput for h5-h6: 16.9 Mbps
+Throughput for h1-h4: 18.1 Mbps
+Throughput for h5-h6: 23.2 Mbps
 
-My prediction are quite close to the actual value. The latency for h1-h4 is the sum of latency of L1, L2 and L3, and the latency for h5-h6 is the sum of latency of L2, L4 and L5. As the two hosts share L2, it becomes the bottleneck of the two pairs. The throughput of the two pairs sums to 37.9 which is close to the throughput of L2.
+My prediction are quite close to the actual value. The latency for h1-h4 is the sum of latency of L1, L2 and L3, and the latency for h5-h6 is the sum of latency of L2, L4 and L5. As the two hosts share L2, it becomes the bottleneck of the two pairs. The throughput of the two pairs sums to 41.3Mbps which is close to the throughput of L2. However, the predictions of throughput for each pair is not correct. The throughput of h1-h4 is less than h5-h6 regardless the start time. That is because the latency(RTT) of h1-h4 is larger than latency of h5-h6, the congestion window size of h5-h6 changes faster than h1-h4's, which means the congestion window size of h5-h6 can be more suitable for the condition of the network and leads to a higher throughput of h1-h4. (This is similar to the problem 50 of chapter 3 of homework 3 in the textbook.)
