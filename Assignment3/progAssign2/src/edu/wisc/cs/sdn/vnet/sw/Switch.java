@@ -45,6 +45,10 @@ public class Switch extends Device {
         MACAddress getMac() {
             return mac;
         }
+
+        public String toString() {
+            return String.join(" ", mac.toString(), iface, String.valueOf(timeout));
+        }
     }
 
     private LinkedList<ForwardingEntry> forwardingTable = new LinkedList<>();
@@ -90,6 +94,8 @@ public class Switch extends Device {
         }
         if (!destMatch) broadCast(etherPacket, inIfaceName);
         if (!sourceMatch) forwardingTable.addLast(new ForwardingEntry(sourceMac, inIfaceName));
+
+        forwardingTable.forEach(System.err::println);
         /********************************************************************/
     }
     private void broadCast(Ethernet etherPacket, String inIfaceName) {
