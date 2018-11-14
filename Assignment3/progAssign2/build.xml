@@ -1,0 +1,26 @@
+<project name="VirtualNetwork" default="dist">
+    <target name="init">
+        <mkdir dir="bin/" />
+    </target>
+
+    <target name="compile" depends="init">
+        <javac includeantruntime="false" srcdir="src/" destdir="bin/"
+            debug="on" />
+    </target>
+
+    <target name="dist" depends="compile">
+        <jar destfile="${ant.project.name}.jar">
+            <manifest>
+                <attribute name="Main-Class" 
+                    value="edu.wisc.cs.sdn.vnet.Main" />
+                <attribute name="Class-Path" value="." />
+            </manifest>
+            <fileset dir="bin/" />
+        </jar>
+    </target>
+	
+    <target name="clean">
+        <delete dir="bin/" />
+        <delete file="${ant.project.name}.jar" />
+    </target>    
+</project>

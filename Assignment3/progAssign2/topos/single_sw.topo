@@ -1,0 +1,7 @@
+host h1 10.0.1.101/24 -
+host h2 10.0.1.102/24 -
+host h3 10.0.1.103/24 -
+switch s1
+link s1 h1
+link s1 h2
+link s1 h3
