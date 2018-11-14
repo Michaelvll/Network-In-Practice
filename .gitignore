@@ -6,3 +6,4 @@ auth.py
 *.tex
 .vscode/
 *.ova
+*.zip
