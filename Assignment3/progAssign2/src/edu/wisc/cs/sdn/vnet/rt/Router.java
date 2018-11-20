@@ -91,8 +91,6 @@ public class Router extends Device
 		
 		/********************************************************************/
 		/* TODO: Handle packets                                             */
-		System.out.println("here");
-
 		if (etherPacket.getEtherType() != Ethernet.TYPE_IPv4) {
 			System.out.println("Not IPv4 packet dropped");
 			return;
