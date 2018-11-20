@@ -4,7 +4,14 @@ import edu.wisc.cs.sdn.vnet.Device;
 import edu.wisc.cs.sdn.vnet.DumpFile;
 import edu.wisc.cs.sdn.vnet.Iface;
 
+import javafx.util.Pair;
 import net.floodlightcontroller.packet.Ethernet;
+import net.floodlightcontroller.packet.IPacket;
+import net.floodlightcontroller.packet.IPv4;
+import net.floodlightcontroller.packet.MACAddress;
+
+import java.nio.ByteBuffer;
+import java.util.Map;
 
 /**
  * @author Aaron Gember-Jacobson and Anubhavnidhi Abhashkumar
@@ -84,8 +91,78 @@ public class Router extends Device
 		
 		/********************************************************************/
 		/* TODO: Handle packets                                             */
-		
-		
+		System.out.println("here");
+
+		if (etherPacket.getEtherType() != Ethernet.TYPE_IPv4) {
+			System.out.println("Not IPv4 packet dropped");
+			return;
+		}
+		IPv4 header = (IPv4) etherPacket.getPayload();
+
+		short checksum = header.getChecksum();
+		short nowChecksum = calculateChecksum(header);
+		if (checksum != nowChecksum) {
+			System.out.println("Checksum is incorrect! Not handle.\nExpected: " + String.valueOf(checksum) + "\t; Get: " + String.valueOf(nowChecksum));
+			return;
+		}
+
+		byte ttl = header.getTtl();
+		--ttl;
+		if (ttl == 0) {
+			System.out.println("TTL is zero! Not handle");
+			return;
+		}
+
+		int destIP = header.getDestinationAddress();
+		for (Map.Entry<String, Iface> entry: super.interfaces.entrySet()) {
+			Iface iface = entry.getValue();
+			int ifaceIP = iface.getIpAddress();
+			if (destIP == ifaceIP) {
+				System.out.println("Match interface IP, not handle.");
+				return;
+			}
+		}
+
+		RouteEntry routeEntry = routeTable.lookup(destIP);
+		if (routeEntry == null) {
+			System.out.println("No matched routeEntry for destIP: " + String.valueOf(destIP));
+			return;
+		}
+
+		header.setTtl(ttl);
+		header.setChecksum(calculateChecksum(header));
+
+		ArpEntry arpEntry = arpCache.lookup(destIP);
+		MACAddress nextHopMAC = arpEntry.getMac();
+
+		Iface outIface = routeEntry.getInterface();
+		MACAddress sourceMAC = outIface.getMacAddress();
+		etherPacket.setDestinationMACAddress(nextHopMAC.toBytes());
+		etherPacket.setSourceMACAddress(sourceMAC.toBytes());
+		System.out.println("Send etherPacket: " + etherPacket.toString());
+		sendPacket(etherPacket, outIface);
+
 		/********************************************************************/
+	}
+	private short calculateChecksum(IPv4 header) {
+		int headerLength = header.getHeaderLength();
+		byte[] data = new byte[headerLength * 4];
+		ByteBuffer bb = ByteBuffer.wrap(data);
+
+		bb.put((byte) (((header.getVersion() & 0xf) << 4) | (headerLength & 0xf)));
+		bb.put(header.getDiffServ());
+		bb.putShort(header.getTotalLength());
+		bb.putShort(header.getIdentification());
+		bb.putShort((short) (((header.getFlags() & 0x7) << 13) | (header.getFragmentOffset() & 0x1fff)));
+		bb.put(header.getTtl());
+		bb.put(header.getProtocol());
+
+		int accumulation = 0;
+		bb.rewind();
+		for (int i = 0; i < headerLength * 2; ++i) {
+			accumulation += 0xffff & bb.getShort();
+		}
+		accumulation = ((accumulation >> 16) & 0xffff) + (accumulation & 0xffff);
+		return (short) (~accumulation & 0xffff);
 	}
 }
