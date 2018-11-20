@@ -97,10 +97,9 @@ public class Router extends Device
 		}
 		IPv4 header = (IPv4) etherPacket.getPayload();
 
-		short checksum = header.getChecksum();
-		short nowChecksum = calculateChecksum(header);
-		if (checksum != nowChecksum) {
-			System.out.println("Checksum is incorrect! Not handle.\nExpected: " + String.valueOf(checksum) + "\t; Get: " + String.valueOf(nowChecksum));
+		short check = getChecksum(header);
+		if ((check & 0xffff) != 0x0000) {
+			System.out.println("Checksum is incorrect! Not handle. \nSum: " + String.valueOf((check & 0xffff)));
 			return;
 		}
 
@@ -128,7 +127,9 @@ public class Router extends Device
 		}
 
 		header.setTtl(ttl);
-		header.setChecksum(calculateChecksum(header));
+		header.resetChecksum();
+		short newChecksum = getChecksum(header);
+		header.setChecksum(newChecksum);
 
 		ArpEntry arpEntry = arpCache.lookup(destIP);
 		MACAddress nextHopMAC = arpEntry.getMac();
@@ -142,25 +143,32 @@ public class Router extends Device
 
 		/********************************************************************/
 	}
-	private short calculateChecksum(IPv4 header) {
+	private short getChecksum(IPv4 header) {
+		System.out.println("Header length: "+ String.valueOf(header.getHeaderLength()));
 		int headerLength = header.getHeaderLength();
-		byte[] data = new byte[headerLength * 8];
+		byte[] data = new byte[headerLength * 4];
 		ByteBuffer bb = ByteBuffer.wrap(data);
 
-		bb.put((byte) (((header.getVersion() & 0xf) << 4) | (headerLength & 0xf)));
+		bb.put((byte) (((header.getVersion() & 0xf) << 4) | (header.getHeaderLength() & 0xf)));
 		bb.put(header.getDiffServ());
 		bb.putShort(header.getTotalLength());
 		bb.putShort(header.getIdentification());
 		bb.putShort((short) (((header.getFlags() & 0x7) << 13) | (header.getFragmentOffset() & 0x1fff)));
 		bb.put(header.getTtl());
 		bb.put(header.getProtocol());
+		bb.putShort(header.getChecksum());
+		bb.putInt(header.getSourceAddress());
+		bb.putInt(header.getDestinationAddress());
+		if (header.getOptions() != null)
+			bb.put(header.getOptions());
 
-		int accumulation = 0;
 		bb.rewind();
+		int accumulation = 0;
 		for (int i = 0; i < headerLength * 2; ++i) {
 			accumulation += 0xffff & bb.getShort();
 		}
-		accumulation = ((accumulation >> 16) & 0xffff) + (accumulation & 0xffff);
+		accumulation = ((accumulation >> 16) & 0xffff)
+				+ (accumulation & 0xffff);
 		return (short) (~accumulation & 0xffff);
 	}
 }
