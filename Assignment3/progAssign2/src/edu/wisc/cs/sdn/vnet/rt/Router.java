@@ -144,7 +144,7 @@ public class Router extends Device
 	}
 	private short calculateChecksum(IPv4 header) {
 		int headerLength = header.getHeaderLength();
-		byte[] data = new byte[headerLength * 4];
+		byte[] data = new byte[headerLength * 8];
 		ByteBuffer bb = ByteBuffer.wrap(data);
 
 		bb.put((byte) (((header.getVersion() & 0xf) << 4) | (headerLength & 0xf)));
