@@ -86,3 +86,5 @@ I completed the `lookup(...)` function in the `cs.sdn.vnet.rt.RouteTable` class 
    ```
 5. Now you will see the something like the figure below, which means the java code successfully simulate the action of a router.
     ![Result of the router](./router_result.png)
+
+Though there are some bugs of pox which will show a lot of errors, the code can also handle the routers and switches in topos, including pair_rt.topo, triangle_rt.topo, single_each.topo and triangle_with_sw.topo.

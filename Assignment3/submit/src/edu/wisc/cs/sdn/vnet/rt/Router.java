@@ -112,19 +112,19 @@ public class Router extends Device
 			return;
 		}
 		// Check destination IP
-		int destIP = header.getDestinationAddress();
+		int dstIP = header.getDestinationAddress();
 		for (Map.Entry<String, Iface> entry: super.interfaces.entrySet()) {
 			Iface iface = entry.getValue();
 			int ifaceIP = iface.getIpAddress();
-			if (destIP == ifaceIP) {
+			if (dstIP == ifaceIP) {
 				System.out.println("Match interface IP, not handle.");
 				return;
 			}
 		}
 		// Look up route entry
-		RouteEntry routeEntry = routeTable.lookup(destIP);
+		RouteEntry routeEntry = routeTable.lookup(dstIP);
 		if (routeEntry == null) {
-			System.out.println("No matched routeEntry for destIP: " + String.valueOf(destIP));
+			System.out.println("No matched routeEntry for dstIP: " + String.valueOf(dstIP));
 			return;
 		}
 		// Update IPv4 packet
@@ -133,7 +133,9 @@ public class Router extends Device
 		short newChecksum = getChecksum(header);
 		header.setChecksum(newChecksum);
 		// Look up arp entry
-		ArpEntry arpEntry = arpCache.lookup(destIP);
+		int nextHopIP = dstIP;
+		if (routeEntry.getGatewayAddress() != 0) nextHopIP = routeEntry.getGatewayAddress();
+		ArpEntry arpEntry = arpCache.lookup(nextHopIP);
 		MACAddress nextHopMAC = arpEntry.getMac();
 		// Update ethernet packet
 		Iface outIface = routeEntry.getInterface();
