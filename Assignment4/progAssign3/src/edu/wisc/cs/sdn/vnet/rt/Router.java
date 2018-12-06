@@ -23,6 +23,10 @@ public class Router extends Device {
      */
     private AtomicReference<ArpCache> arpCache;
 
+    // Timer for RIP
+    private Timer ripTimer;
+    private final static int ripIP = IPv4.toIPv4Address("224.0.0.9");
+
     private class PackIface {
         BasePacket packet;
         Iface inIface;
@@ -92,6 +96,23 @@ public class Router extends Device {
         System.out.println("----------------------------------");
     }
 
+    public void startRIP() {
+        // Add entries of directly reachable subnets
+        for (Iface iface : interfaces.values()) {
+            int ip = iface.getIpAddress();
+            int mask = iface.getSubnetMask();
+            int subnet = ip & mask;
+            routeTable.insert(subnet, 0, mask, iface, 1, false);
+        }
+
+        // Send RIP initial request
+        for (Iface iface : interfaces.values()) {
+            sendRIP(iface, true, false, null);
+        }
+        ripTimer = new Timer();
+        ripTimer.scheduleAtFixedRate(new ScheduledRIPResponse(), 10000, 10000);
+    }
+
     /**
      * Handle an Ethernet packet received on a specific interface.
      *
@@ -134,13 +155,13 @@ public class Router extends Device {
 
                 Queue<PackIface> queue = packetQueues.get().get(senderIP);
                 packetQueues.get().remove(senderIP);
-                System.out.println("Get ARP reply for IP: " + IPv4.fromIPv4Address(senderIP) + "! Send " +
-                        queue.size() + " packets in the queue");
+//                System.out.println("Get ARP reply for IP: " + IPv4.fromIPv4Address(senderIP) + "! Send " +
+//                        queue.size() + " packets in the queue");
                 for (PackIface packIface : queue) {
                     Ethernet ethernet = (Ethernet) packIface.packet;
                     ethernet.setDestinationMACAddress(senderMAC.toBytes());
                     sendPacket(ethernet, inIface);
-                    System.out.println("Send etherPacket in queue: " + ethernet.toString().replace("\n", "\n\t"));
+//                    System.out.println("Send etherPacket in queue: " + ethernet.toString().replace("\n", "\n\t"));
                 }
             }
             return;
@@ -156,14 +177,57 @@ public class Router extends Device {
         sendARP(etherPacket, inIface, srcIP);
     }
 
+    private void handleRIPPacket(Ethernet etherPacket, Iface inIface) {
+        IPv4 ip = (IPv4) etherPacket.getPayload();
+        UDP udp = (UDP) ip.getPayload();
+        if (!(udp.getPayload() instanceof RIPv2)) {
+            System.out.println("Get non RIP packet from the reserved port");
+        }
+        RIPv2 rip = (RIPv2) udp.getPayload();
+        // Check UDP checksum
+        short originCheck = udp.getChecksum();
+        udp.resetChecksum();
+        byte[] serialized = udp.serialize();
+        udp.deserialize(serialized, 0, serialized.length);
+        if (udp.getChecksum() != originCheck) {
+            System.out.println("UDP Checksum is incorrect! Not handle. \nSum: " + String.valueOf((udp.getChecksum() & 0xffff)));
+            return;
+        }
+//        System.out.println("Get RIP Packet: " + rip.toString());
+
+        // Update route table according to the rip
+        for (RIPv2Entry entry : rip.getEntries()) {
+            int dstIP = entry.getAddress();
+            int nextHopIP = entry.getNextHopAddress();
+            int mask = entry.getSubnetMask();
+            int metric = entry.getMetric();
+            if ((dstIP & mask) == (inIface.getIpAddress() & inIface.getSubnetMask())) continue;
+
+            RouteEntry dstEntry = routeTable.lookup(dstIP);
+            RouteEntry nextEntry = routeTable.lookup(nextHopIP);
+            int nextHopMetric = nextEntry.getMetric();
+            int cost = nextHopMetric + metric;
+
+            if (dstEntry == null) routeTable.insert(dstIP, nextHopIP, mask, inIface, cost, true);
+            else if (cost < dstEntry.getMetric())
+                routeTable.update(dstIP, mask, nextHopIP, inIface, cost);
+        }
+        System.out.println("Route table updated: \n" + routeTable.toString());
+        if (rip.getCommand() == RIPv2.COMMAND_REQUEST) {
+            sendRIP(inIface, false, true, etherPacket);
+        }
+    }
 
     private void handleIPPacket(Ethernet etherPacket, Iface inIface) {
         // Get IPv4 header
         IPv4 ipPacket = (IPv4) etherPacket.getPayload();
         // Check checksum
-        short check = getChecksum(ipPacket);
-        if ((check & 0xffff) != 0x0000) {
-            System.out.println("Checksum is incorrect! Not handle. \nSum: " + String.valueOf((check & 0xffff)));
+        short originCheck = ipPacket.getChecksum();
+        ipPacket.resetChecksum();
+        byte[] serialized = ipPacket.serialize();
+        ipPacket.deserialize(serialized, 0, serialized.length);
+        if (ipPacket.getChecksum() != originCheck) {
+            System.out.println("IPv4 Checksum is incorrect! Not handle. \nSum: " + String.valueOf((ipPacket.getChecksum() & 0xffff)));
             return;
         }
         // Check TTL
@@ -177,12 +241,20 @@ public class Router extends Device {
 
         // Check destination IP
         int dstIP = ipPacket.getDestinationAddress();
-        for (Map.Entry<String, Iface> entry : super.interfaces.entrySet()) {
-            Iface iface = entry.getValue();
+        if (dstIP == ripIP) {
+            handleRIPPacket(etherPacket, inIface);
+            return;
+        }
+        for (Iface iface : super.interfaces.values()) {
             int ifaceIP = iface.getIpAddress();
             if (dstIP == ifaceIP) {
                 switch (ipPacket.getProtocol()) {
-                    case IPv4.PROTOCOL_TCP: case IPv4.PROTOCOL_UDP:
+                    case IPv4.PROTOCOL_UDP:
+                        if (((UDP) ipPacket.getPayload()).getDestinationPort() == UDP.RIP_PORT) {
+                            handleRIPPacket(etherPacket, inIface);
+                            return;
+                        }
+                    case IPv4.PROTOCOL_TCP:
                         System.out.println(IPv4.protocolClassMap.get(ipPacket.getProtocol())
                                 + ", match interface IP! Send back ICMP (Type 3, Code 3)");
                         sendICMP(inIface, ipPacket, 3, 3);
@@ -211,8 +283,8 @@ public class Router extends Device {
         // Update IPv4 packet
         ipPacket.setTtl(ttl);
         ipPacket.resetChecksum();
-        short newChecksum = getChecksum(ipPacket);
-        ipPacket.setChecksum(newChecksum);
+        serialized = ipPacket.serialize();
+        ipPacket.deserialize(serialized, 0, serialized.length);
 
         // Update ethernet packet
         Iface outIface = routeEntry.getInterface();
@@ -220,10 +292,10 @@ public class Router extends Device {
         etherPacket.setSourceMACAddress(sourceMAC.toBytes());
 
         // Look up arp entry
-        arpAndSendEther(etherPacket, inIface, dstIP, routeEntry, outIface);
+        arpAndResponse(etherPacket, inIface, dstIP, routeEntry, outIface);
     }
 
-    private void arpAndSendEther(Ethernet etherPacket, Iface inIface, int dstIP, RouteEntry routeEntry, Iface outIface) {
+    private void arpAndResponse(Ethernet etherPacket, Iface inIface, int dstIP, RouteEntry routeEntry, Iface outIface) {
         int nextHopIP = routeEntry.getGatewayAddress();
         if (nextHopIP == 0) nextHopIP = dstIP;
         ArpEntry arpEntry = arpCache.get().lookup(nextHopIP);
@@ -317,7 +389,7 @@ public class Router extends Device {
 
 //        ether.serialize();
         sendPacket(ether, outIface);
-        System.out.println("Send ARP packet: " + (request ? "request" : "reply") + ether.toString().replace("\n", "\n\t"));
+//        System.out.println("Send ARP packet: " + (request ? "request" : "reply") + ether.toString().replace("\n", "\n\t"));
     }
 
     private void sendICMP(Iface inIface, IPv4 ipPacket, int type, int code) {
@@ -365,47 +437,83 @@ public class Router extends Device {
 //		    System.out.println(Arrays.toString(ipBytes));
         } else data.setData(ipPacket.getPayload().getPayload().serialize());
 
-        arpAndSendEther(ether, inIface, dstIP, dstRouteEntry, outIface);
+        arpAndResponse(ether, inIface, dstIP, dstRouteEntry, outIface);
 //		System.out.println("Send etherPacket (ICMP): " + ether.toString().replace("\n", "\n\t"));
     }
 
+    private void sendRIP(Iface iface, boolean broadcast, boolean reply, Ethernet originEther) {
+        Ethernet ether = new Ethernet();
+        IPv4 ip = new IPv4();
+        UDP udp = new UDP();
+        RIPv2 rip = new RIPv2();
+        ether.setPayload(ip);
+        ip.setPayload(udp);
+        udp.setPayload(rip);
+        // Set ethernet header
+        ether.setEtherType(Ethernet.TYPE_IPv4);
+        ether.setSourceMACAddress(iface.getMacAddress().toBytes());
+        ether.setDestinationMACAddress((broadcast ? MACAddress.valueOf("FF:FF:FF:FF:FF:FF").toBytes()
+                : originEther.getSourceMACAddress()));
+        // Set ip header
+        ip.setProtocol(IPv4.PROTOCOL_UDP);
+        ip.setTtl((byte) 64);
+        ip.setSourceAddress(iface.getIpAddress());
+        ip.setDestinationAddress(reply ? ((IPv4) originEther.getPayload()).getSourceAddress() : ripIP);
+        // Set udp header
+        udp.setSourcePort(UDP.RIP_PORT);
+        udp.setDestinationPort(UDP.RIP_PORT);
+        // Set RIP header
+        rip.setCommand((reply || broadcast) ? RIPv2.COMMAND_RESPONSE : RIPv2.COMMAND_REQUEST);
+        for (RouteEntry routeEntry : routeTable.getEntries()) {
+            int dstIP = routeEntry.getDestinationAddress();
+            int mask = routeEntry.getMaskAddress();
+            int metric = routeEntry.getMetric();
 
-//    private MACAddress getNextHopMAC(RouteEntry routeEntry, int dstIP) {
-//        int nextHopIP = routeEntry.getGatewayAddress();
-//        if (nextHopIP == 0) nextHopIP = dstIP;
-//        ArpEntry arpEntry = arpCache.get().lookup(nextHopIP);
-//        MACAddress dstMAC = null;
-//        if (arpEntry == null)
-//            System.out.println("No matched ARP entry for the next hop IP: " + IPv4.fromIPv4Address(nextHopIP) + "!");
-//        else dstMAC = arpEntry.getMac();
-//        return dstMAC;
+            RIPv2Entry ripEntry = new RIPv2Entry(dstIP, mask, metric);
+            ripEntry.setNextHopAddress(iface.getIpAddress());
+            rip.addEntry(ripEntry);
+        }
+
+        sendPacket(ether, iface);
+//        System.out.println("Send RIP packet: " + ((reply || broadcast) ? "COMMAND_RESPONSE" : "COMMAND_REQUEST")
+//                + ether.toString().replace("\n", "\n\t"));
+    }
+
+    private class ScheduledRIPResponse extends TimerTask {
+        @Override
+        public void run() {
+            for (Iface iface : interfaces.values()) {
+                sendRIP(iface, true, false, null);
+            }
+        }
+    }
+
+//    private short getChecksum(IPv4 header) {
+//        int headerLength = header.getHeaderLength();
+//        byte[] data = new byte[headerLength * 4];
+//        ByteBuffer bb = ByteBuffer.wrap(data);
+//
+//        bb.put((byte) (((header.getVersion() & 0xf) << 4) | (header.getHeaderLength() & 0xf)));
+//        bb.put(header.getDiffServ());
+//        bb.putShort(header.getTotalLength());
+//        bb.putShort(header.getIdentification());
+//        bb.putShort((short) (((header.getFlags() & 0x7) << 13) | (header.getFragmentOffset() & 0x1fff)));
+//        bb.put(header.getTtl());
+//        bb.put(header.getProtocol());
+//        bb.putShort(header.getChecksum());
+//        bb.putInt(header.getSourceAddress());
+//        bb.putInt(header.getDestinationAddress());
+//        if (header.getOptions() != null)
+//            bb.put(header.getOptions());
+//
+//        bb.rewind();
+//        int accumulation = 0;
+//        for (int i = 0; i < headerLength * 2; ++i) {
+//            accumulation += 0xffff & bb.getShort();
+//        }
+//        accumulation = ((accumulation >> 16) & 0xffff)
+//                + (accumulation & 0xffff);
+//        return (short) (~accumulation & 0xffff);
 //    }
 
-    private short getChecksum(IPv4 header) {
-        int headerLength = header.getHeaderLength();
-        byte[] data = new byte[headerLength * 4];
-        ByteBuffer bb = ByteBuffer.wrap(data);
-
-        bb.put((byte) (((header.getVersion() & 0xf) << 4) | (header.getHeaderLength() & 0xf)));
-        bb.put(header.getDiffServ());
-        bb.putShort(header.getTotalLength());
-        bb.putShort(header.getIdentification());
-        bb.putShort((short) (((header.getFlags() & 0x7) << 13) | (header.getFragmentOffset() & 0x1fff)));
-        bb.put(header.getTtl());
-        bb.put(header.getProtocol());
-        bb.putShort(header.getChecksum());
-        bb.putInt(header.getSourceAddress());
-        bb.putInt(header.getDestinationAddress());
-        if (header.getOptions() != null)
-            bb.put(header.getOptions());
-
-        bb.rewind();
-        int accumulation = 0;
-        for (int i = 0; i < headerLength * 2; ++i) {
-            accumulation += 0xffff & bb.getShort();
-        }
-        accumulation = ((accumulation >> 16) & 0xffff)
-                + (accumulation & 0xffff);
-        return (short) (~accumulation & 0xffff);
-    }
 }

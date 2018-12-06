@@ -3,6 +3,7 @@
     <words>
       <w>icmp</w>
       <w>iface</w>
+      <w>subnets</w>
     </words>
   </dictionary>
 </component>
