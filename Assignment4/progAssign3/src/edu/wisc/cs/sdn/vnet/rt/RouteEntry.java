@@ -114,6 +114,8 @@ public class RouteEntry
 	class removeTimeout extends TimerTask {
 		@Override
 		public void run() {
+			timer.cancel();
+			timer.purge();
 			parent.remove(destinationAddress, maskAddress);
 		}
 	}
