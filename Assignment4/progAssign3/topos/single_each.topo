@@ -1,0 +1,7 @@
+host h1 10.0.1.101/24 10.0.1.1
+host h2 10.0.1.102/24 10.0.1.1
+switch s1
+router r1 10.0.1.1/24
+link s1 h1
+link s1 h2
+link s1 r1
