@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="jakarta-oro-2.0.8">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/floodlight-plus/lib/oro/jakarta-oro-2.0.8.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
