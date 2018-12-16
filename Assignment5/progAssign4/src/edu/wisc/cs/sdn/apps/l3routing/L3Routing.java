@@ -122,7 +122,7 @@ public class L3Routing implements IFloodlightModule, IOFSwitchListener,
 
             /*****************************************************************/
             /* TODO: Update routing: add rules to route to new host          */
-            bellmanFord();
+            bellmanFord(host);
             /*****************************************************************/
         }
     }
@@ -145,7 +145,7 @@ public class L3Routing implements IFloodlightModule, IOFSwitchListener,
 
         /*********************************************************************/
         /* TODO: Update routing: remove rules to route to host               */
-        bellmanFord();
+        removeSwitchRules(host.getIPv4Address());
         /*********************************************************************/
     }
 
@@ -171,7 +171,7 @@ public class L3Routing implements IFloodlightModule, IOFSwitchListener,
 
         /*********************************************************************/
         /* TODO: Update routing: change rules to route to host               */
-        bellmanFord();
+        bellmanFord(host);
         /*********************************************************************/
     }
 
@@ -235,19 +235,42 @@ public class L3Routing implements IFloodlightModule, IOFSwitchListener,
         /*********************************************************************/
     }
 
-    class DstArray extends HashMap<IOFSwitch, Integer> {
-        private final int infty = 1 << 31;
+    class DefaultArray extends HashMap<IOFSwitch, Integer> {
+        private final int defaultValue;
+
+        DefaultArray(int defaultValue) {
+            this.defaultValue = defaultValue;
+        }
 
         @Override
         public Integer get(Object key) {
-            return super.getOrDefault(key, infty);
+            Integer value = super.get(key);
+            return (value == null) ? defaultValue : value;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder stringBuilder = new StringBuilder();
+            for (Entry<IOFSwitch, Integer> entry : super.entrySet()) {
+                IOFSwitch iofSwitch = entry.getKey();
+                Integer integer = entry.getValue();
+                if (integer == null || iofSwitch == null) continue;
+                stringBuilder.append(iofSwitch.toString()).append(" ").append(integer)
+                        .append("\n");
+            }
+            return stringBuilder.toString();
         }
     }
 
-    private void installSwitchRule(IOFSwitch iofSwitch, int port, Host dstHost) {
+    private OFMatch ipOFMatch(int ip) {
         OFMatch ofMatch = new OFMatch();
         ofMatch.setDataLayerType(OFMatch.ETH_TYPE_IPV4);
-        ofMatch.setNetworkDestination(OFMatch.ETH_TYPE_IPV4, dstHost.getIPv4Address());
+        ofMatch.setNetworkDestination(OFMatch.ETH_TYPE_IPV4, ip);
+        return ofMatch;
+    }
+
+    private void installSwitchRule(IOFSwitch iofSwitch, int port, Host dstHost) {
+        OFMatch ofMatch = ipOFMatch(dstHost.getIPv4Address());
 
         OFInstructionApplyActions instruction = new OFInstructionApplyActions();
         OFActionOutput action = new OFActionOutput(port);
@@ -256,38 +279,60 @@ public class L3Routing implements IFloodlightModule, IOFSwitchListener,
                 ofMatch, new ArrayList<OFInstruction>(Collections.singletonList(instruction)));
     }
 
+    private void removeSwitchRules(Integer ip) {
+        if (ip == null) return;
+        Map<Long, IOFSwitch> switches = getSwitches();
+        for (IOFSwitch iofSwitch : switches.values()) {
+            OFMatch ofMatch = ipOFMatch(ip);
+            SwitchCommands.removeRules(iofSwitch, table, ofMatch);
+        }
+    }
+
+    private void updateDistanceForLink(IOFSwitch srcSwitch, IOFSwitch dstSwitch, int port, DefaultArray dstArray, DefaultArray switchPort) {
+        int newDst = dstArray.get(dstSwitch) + 1;
+        if (newDst < dstArray.get(srcSwitch)) {
+            dstArray.put(srcSwitch, newDst);
+            switchPort.put(srcSwitch, port);
+        }
+    }
+
     private void bellmanFord() {
         Collection<Host> hosts = getHosts();
-        Collection<Link> links = getLinks();
-        DstArray dstArray = new DstArray();
-        Map<Long, IOFSwitch> switches = getSwitches();
-        Map<IOFSwitch, Integer> switchPort = new HashMap<IOFSwitch, Integer>();
 
         for (Host host : hosts) {
-            // Init distance array
-            dstArray.clear();
-            dstArray.put(host.getSwitch(), 1);
-            switchPort.put(host.getSwitch(), host.getPort());
+            bellmanFord(host);
+        }
+    }
 
-            // Find the shortest path to $host for each switch
-            for (int i = 0; i < switches.size() - 1; ++i) {
-                for (Link link : links) {
-                    IOFSwitch srcSwitch = switches.get(link.getSrc());
-                    IOFSwitch dstSwitch = switches.get(link.getDst());
-                    int newDst = dstArray.get(dstSwitch) + 1;
-                    if (newDst < dstArray.get(srcSwitch)) {
-                        dstArray.put(srcSwitch, newDst);
-                        switchPort.put(srcSwitch, link.getSrcPort());
-                    }
-                }
-            }
+    private void bellmanFord(Host host) {
+        // Init distance array
+        Collection<Link> links = getLinks();
+        DefaultArray dstArray = new DefaultArray(1 << 30);
+        Map<Long, IOFSwitch> switches = getSwitches();
+        DefaultArray switchPort = new DefaultArray(0);
+        dstArray.put(host.getSwitch(), 1);
+        switchPort.put(host.getSwitch(), host.getPort());
 
-            // Set rule for each switch with the port of shortest path to $host
-            for (Map.Entry<IOFSwitch, Integer> entry : switchPort.entrySet()) {
-                IOFSwitch iofSwitch = entry.getKey();
-                Integer port = entry.getValue();
-                installSwitchRule(iofSwitch, port, host);
+        if (!host.isAttachedToSwitch() || host.getIPv4Address() == null) return;
+
+        // Find the shortest path to $host for each switch
+        for (int i = 0; i < switches.size() - 1; ++i) {
+            for (Link link : links) {
+                IOFSwitch srcSwitch = switches.get(link.getSrc());
+                IOFSwitch dstSwitch = switches.get(link.getDst());
+                int srcPort = link.getSrcPort();
+                int dstPort = link.getDstPort();
+                updateDistanceForLink(srcSwitch, dstSwitch, srcPort, dstArray, switchPort);
+                // For bidirectional path
+                updateDistanceForLink(dstSwitch, srcSwitch, dstPort, dstArray, switchPort);
             }
+        }
+//            System.err.println(dstArray.toString());
+
+        // Set rule for each switch with the port of shortest path to $host
+        for (IOFSwitch iofSwitch : switches.values()) {
+            Integer port = switchPort.get(iofSwitch);
+            if (port != 0) installSwitchRule(iofSwitch, port, host);
         }
     }
 
