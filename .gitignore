@@ -7,3 +7,4 @@ auth.py
 .vscode/
 *.ova
 *.zip
+.idea/
