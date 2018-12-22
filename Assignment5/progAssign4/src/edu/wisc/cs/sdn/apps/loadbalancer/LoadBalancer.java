@@ -130,7 +130,7 @@ public class LoadBalancer implements IFloodlightModule, IOFSwitchListener,
             OFMatch ofMatch = new OFMatch();
             ofMatch.setDataLayerType(OFMatch.ETH_TYPE_IPV4);
             ofMatch.setNetworkDestination(OFMatch.ETH_TYPE_IPV4, virtualIP);
-            ofMatch.setNetworkTypeOfService(OFMatch.IP_PROTO_TCP);
+            ofMatch.setNetworkProtocol(OFMatch.IP_PROTO_TCP);
 
             SwitchCommands.installRule(sw, table, SwitchCommands.DEFAULT_PRIORITY, ofMatch,
                     instructionsToController());
